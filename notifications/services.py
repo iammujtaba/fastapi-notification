@@ -1,7 +1,7 @@
 from fastapi import  WebSocket
 from fasnof.cache import cache
-from collections import defaultdict
 import json
+from notifications.models import UserNotificationService
 
 class WebSocketManager:
     def __init__(self):
@@ -38,17 +38,11 @@ class WebSocketManager:
         cache.set(f"ws-{user_id}",json.dumps(existing_msgs),expire_time=60*60*24) #default timeout 1day we can change it later
 
     async def check_for_any_unpublished_communication(self,user_id:int):
-        print("checking for any unpublished communication",user_id)
         existing_msgs = cache.get(f"ws-{user_id}") or []
         if existing_msgs:
-            print(f"found unpublished communication for client {user_id}")
             for msg in json.loads(existing_msgs):
-                print("sending unpublished communication",msg)
                 await self.send_notification_to_client(user_id,msg)
             cache.delete(f"ws-{user_id}")
-    
-        
-
 
 class EventLogger:
     def __init__(self,process_event:bool=False):
@@ -56,17 +50,19 @@ class EventLogger:
         if self.process_event:
             self.ws_client = websocker_manager
 
-    async def process_event(self,event_name:str,content:dict):
-        pass
+    def create_event_db_entry(self,event_name:str,content:dict):
+        content['event_name'] = event_name
+        UserNotificationService().create(**content) # creating database entry for the event
 
     async def log_event(self, event_name:str, content:dict):
-        print(f'Logged event - Event Name: {event_name}, Content: {content}')
+
         if self.process_event:
             user_id = content.get('user_id')
             if not user_id:
                 raise ValueError("user_id is required to process event")
+            self.create_event_db_entry(event_name,content)
             await self.ws_client.send_notification_to_client(int(user_id),f"Event Name: {event_name}, Content: {content}")
 
 
 websocker_manager = WebSocketManager()
-
+event_logger = EventLogger(process_event=True)

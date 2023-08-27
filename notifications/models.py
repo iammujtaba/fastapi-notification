@@ -4,7 +4,6 @@ from fasnof.base_domain import BaseModelService
 
 db = SessionLocal()
 
-
 class UserNotification(Base):
     __tablename__ = "user_notifications"
 
